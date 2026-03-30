@@ -4,58 +4,119 @@
 <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap">
   <a href="/proyectos" class="btn btn-gris btn-sm">← Volver</a>
   <h2 style="font-size:20px;color:#2d6a4f;flex:1">📁 {{ proy.nombre }}</h2>
+  <a href="/proyectos/{{ proy.id }}/pdf" class="btn btn-azul">📄 Descargar PDF</a>
   <form method="POST" action="/proyectos/{{ proy.id }}/eliminar"
-        onsubmit="return confirm('¿Eliminar proyecto {{ proy.nombre }}?')">
-    <button class="btn btn-rojo btn-sm">🗑 Eliminar proyecto</button>
+        onsubmit="return confirm('¿Eliminar proyecto {{ proy.nombre }}?')" style="margin:0">
+    <button class="btn btn-rojo btn-sm">🗑 Eliminar</button>
   </form>
 </div>
 
-<div class="card" style="margin-bottom:20px">
+<!-- Info general -->
+<div class="card" style="margin-bottom:16px">
   <div class="card-header" style="background:#f9f9f9">📋 Información general</div>
   <div class="card-body">
-    <div style="display:grid;grid-template-columns:auto 1fr;gap:8px 24px;font-size:14px">
+    <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 20px;font-size:14px">
       <span style="color:#888;font-weight:600">Creado:</span><span>{{ proy.creado or '—' }}</span>
       <span style="color:#888;font-weight:600">Por:</span><span>{{ proy.usuario or '—' }}</span>
     </div>
   </div>
 </div>
 
+<!-- ═══════════════════════════════════════════════════════════
+     MATERIALES USADOS
+════════════════════════════════════════════════════════════ -->
+<div class="card" style="margin-bottom:16px">
+  <div class="card-header" style="color:#2d6a4f;background:#f9f9f9">🧱 Materiales Usados</div>
+  <div class="card-body">
+    <form method="POST" action="/proyectos/{{ proy.id }}/materiales/guardar" id="form-materiales">
+      <div id="lista-materiales">
+        {% if materiales %}
+          {% for m in materiales %}
+          <div class="mat-row" style="display:grid;grid-template-columns:1fr 120px 1fr auto;gap:8px;margin-bottom:8px;align-items:center">
+            <input name="material[]" value="{{ m.material or '' }}" placeholder="Material (ej: Lámina Arena)"
+                   style="padding:8px 10px;border:1.5px solid #e0e0e0;border-radius:6px;font-size:13px;outline:none">
+            <input name="grosor_mat[]" value="{{ m.grosor or '' }}" placeholder="Grosor"
+                   style="padding:8px 10px;border:1.5px solid #e0e0e0;border-radius:6px;font-size:13px;outline:none">
+            <input name="notas_mat[]" value="{{ m.notas or '' }}" placeholder="Notas opcionales"
+                   style="padding:8px 10px;border:1.5px solid #e0e0e0;border-radius:6px;font-size:13px;outline:none">
+            <button type="button" onclick="this.closest('.mat-row').remove()"
+                    style="background:#c0392b;color:#fff;border:none;border-radius:6px;padding:7px 12px;cursor:pointer;font-size:14px">✕</button>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="mat-row" style="display:grid;grid-template-columns:1fr 120px 1fr auto;gap:8px;margin-bottom:8px;align-items:center">
+            <input name="material[]" placeholder="Material (ej: Lámina Arena)"
+                   style="padding:8px 10px;border:1.5px solid #e0e0e0;border-radius:6px;font-size:13px;outline:none">
+            <input name="grosor_mat[]" placeholder="Grosor"
+                   style="padding:8px 10px;border:1.5px solid #e0e0e0;border-radius:6px;font-size:13px;outline:none">
+            <input name="notas_mat[]" placeholder="Notas opcionales"
+                   style="padding:8px 10px;border:1.5px solid #e0e0e0;border-radius:6px;font-size:13px;outline:none">
+            <button type="button" onclick="this.closest('.mat-row').remove()"
+                    style="background:#c0392b;color:#fff;border:none;border-radius:6px;padding:7px 12px;cursor:pointer;font-size:14px">✕</button>
+          </div>
+        {% endif %}
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+        <button type="button" onclick="agregarFila()"
+                style="background:#2d6a4f;color:#fff;border:none;border-radius:6px;padding:7px 14px;cursor:pointer;font-size:13px;font-weight:700">
+          + Agregar fila
+        </button>
+
+        <!-- Info adicional texto -->
+        <div style="width:100%;margin-top:12px">
+          <label style="font-size:12px;font-weight:700;color:#555;display:block;margin-bottom:5px">
+            📝 Información adicional (texto libre)
+          </label>
+          <textarea name="info_adicional_texto" rows="3"
+                    style="width:100%;padding:9px 12px;border:1.5px solid #e0e0e0;border-radius:6px;font-size:13px;resize:vertical;outline:none;font-family:inherit"
+                    placeholder="Notas, observaciones, instrucciones especiales...">{{ info_texto.descripcion if info_texto else '' }}</textarea>
+        </div>
+
+        <button type="submit"
+                style="background:#2d6a4f;color:#fff;border:none;border-radius:6px;padding:9px 22px;cursor:pointer;font-size:13px;font-weight:700;margin-top:8px">
+          ✅ Guardar materiales e info
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     DOCUMENTOS FIJOS
+════════════════════════════════════════════════════════════ -->
 {% for tipo, emoji, label, color in [
   ('cotizacion','💰','COTIZACIÓN','#d4820a'),
   ('render','🎨','RENDER','#1a6fa8'),
   ('plano_corte','📐','PLANO DE CORTE','#2d6a4f')
 ] %}
 {% set doc = docs.get(tipo) %}
-<div class="doc-card">
+<div class="doc-card" style="margin-bottom:12px">
   <div class="doc-card-header" style="background:{{ color }};color:#fff">
     {{ emoji }} {{ label }}
   </div>
   <div class="doc-card-body">
     {% if doc and doc.nombre_arch %}
-      <div style="flex:1;min-width:200px">
+      <div style="flex:1;min-width:180px">
         <div style="font-size:13px;color:#888">Archivo:</div>
         <div style="font-weight:700;font-size:14px">{{ doc.nombre_arch }}</div>
         <div style="font-size:12px;color:#888;margin-top:2px">📅 {{ doc.fecha or '—' }}</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <a href="/archivos/{{ doc.ruta_local }}" target="_blank"
-           class="btn btn-sm" style="background:{{ color }};color:#fff">
-          📂 Abrir
-        </a>
-        <button onclick="openModal('modal_{{ tipo }}')"
-                class="btn btn-gris btn-sm">🔄 Reemplazar</button>
+           class="btn btn-sm" style="background:{{ color }};color:#fff">📂 Abrir</a>
+        <button onclick="openModal('modal_{{ tipo }}')" class="btn btn-gris btn-sm">🔄 Reemplazar</button>
       </div>
     {% else %}
       <span style="color:#aaa;font-size:13px">Sin archivo adjunto</span>
       <button onclick="openModal('modal_{{ tipo }}')"
               class="btn btn-sm" style="background:{{ color }};color:#fff;margin-left:auto">
-        📎 Adjuntar PDF
+        📎 Adjuntar
       </button>
     {% endif %}
   </div>
 </div>
 
-<!-- Modal adjuntar/reemplazar -->
 <div class="modal-overlay" id="modal_{{ tipo }}">
   <div class="modal">
     <div class="modal-header" style="color:{{ color }}">
@@ -66,10 +127,10 @@
       <div class="modal-body">
         <div class="form-group">
           <label>Fecha del documento</label>
-          <input type="text" name="fecha" placeholder="dd/mm/aaaa" id="f_{{ tipo }}">
+          <input type="text" name="fecha" class="fecha-hoy" placeholder="dd/mm/aaaa">
         </div>
         <div class="form-group">
-          <label>Seleccionar archivo *</label>
+          <label>Archivo *</label>
           <input type="file" name="archivo" accept=".pdf,.png,.jpg,.jpeg" required>
         </div>
       </div>
@@ -82,8 +143,84 @@
 </div>
 {% endfor %}
 
+<!-- ═══════════════════════════════════════════════════════════
+     INFORMACIÓN ADICIONAL — hasta 5 PDFs
+════════════════════════════════════════════════════════════ -->
+<div class="card" style="margin-bottom:16px">
+  <div class="card-header" style="background:#f3e5f5;color:#6a3d9a;justify-content:space-between">
+    <span>📎 Información Adicional (archivos)</span>
+    <span style="font-size:11px;color:#999">{{ info_docs|length }}/5 archivos</span>
+  </div>
+  <div class="card-body">
+    {% if info_docs %}
+      {% for d in info_docs %}
+      <div style="display:flex;align-items:center;gap:10px;padding:8px;background:#fafafa;border:1px solid #e0e0e0;border-radius:6px;margin-bottom:8px;flex-wrap:wrap">
+        <div style="flex:1;min-width:160px">
+          <div style="font-weight:700;font-size:13px">{{ d.nombre_arch }}</div>
+          <div style="font-size:11px;color:#888">📅 {{ d.fecha or '—' }}</div>
+        </div>
+        <a href="/archivos/{{ d.ruta_local }}" target="_blank"
+           class="btn btn-sm" style="background:#6a3d9a;color:#fff">📂 Abrir</a>
+        <form method="POST" action="/proyectos/{{ proy.id }}/info_doc/{{ d.id }}/eliminar" style="margin:0">
+          <button class="btn btn-rojo btn-sm">🗑</button>
+        </form>
+      </div>
+      {% endfor %}
+    {% else %}
+      <p style="color:#aaa;font-size:13px;margin:0 0 10px">Sin archivos adjuntos aún.</p>
+    {% endif %}
+
+    {% if info_docs|length < 5 %}
+    <button onclick="openModal('modal_info_adicional')"
+            class="btn btn-sm" style="background:#6a3d9a;color:#fff">
+      📎 Adjuntar archivo ({{ 5 - info_docs|length }} disponibles)
+    </button>
+    {% else %}
+    <p style="color:#999;font-size:12px;margin:8px 0 0">Límite de 5 archivos alcanzado.</p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Modal info adicional -->
+<div class="modal-overlay" id="modal_info_adicional">
+  <div class="modal">
+    <div class="modal-header" style="color:#6a3d9a">
+      📎 Adjuntar archivo adicional
+      <button class="close-modal" onclick="closeModal('modal_info_adicional')">✕</button>
+    </div>
+    <form method="POST" action="/proyectos/{{ proy.id }}/adjuntar/info_adicional" enctype="multipart/form-data">
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Fecha</label>
+          <input type="text" name="fecha" class="fecha-hoy" placeholder="dd/mm/aaaa">
+        </div>
+        <div class="form-group">
+          <label>Archivo *</label>
+          <input type="file" name="archivo" accept=".pdf,.png,.jpg,.jpeg,.xlsx" required>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-gris btn-sm" onclick="closeModal('modal_info_adicional')">Cancelar</button>
+        <button type="submit" class="btn btn-sm" style="background:#6a3d9a;color:#fff">Guardar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script>
-document.querySelectorAll('input[id^="f_"]').forEach(e=>{
+function agregarFila(){
+  const div = document.createElement('div');
+  div.className = 'mat-row';
+  div.style.cssText = 'display:grid;grid-template-columns:1fr 120px 1fr auto;gap:8px;margin-bottom:8px;align-items:center';
+  div.innerHTML = `
+    <input name="material[]" placeholder="Material" style="padding:8px 10px;border:1.5px solid #e0e0e0;border-radius:6px;font-size:13px;outline:none">
+    <input name="grosor_mat[]" placeholder="Grosor" style="padding:8px 10px;border:1.5px solid #e0e0e0;border-radius:6px;font-size:13px;outline:none">
+    <input name="notas_mat[]" placeholder="Notas" style="padding:8px 10px;border:1.5px solid #e0e0e0;border-radius:6px;font-size:13px;outline:none">
+    <button type="button" onclick="this.closest('.mat-row').remove()" style="background:#c0392b;color:#fff;border:none;border-radius:6px;padding:7px 12px;cursor:pointer;font-size:14px">✕</button>
+  `;
+  document.getElementById('lista-materiales').appendChild(div);
+}
+document.querySelectorAll('.fecha-hoy').forEach(e=>{
   const d=new Date();
   e.value=String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear();
 });
