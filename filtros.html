@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h2 style="font-size:20px;color:#6a3d9a;margin-bottom:20px">🔍 Filtros de Búsqueda</h2>
+
+<div class="card" style="margin-bottom:20px">
+  <div class="card-header" style="color:#6a3d9a;background:#f9f9f9">Parámetros de búsqueda</div>
+  <div class="card-body">
+    <form method="GET" action="/filtros">
+      <div class="form-row-3">
+        <div class="form-group">
+          <label>Tipo</label>
+          <select name="tipo">
+            {% for t in ['Todos','Pedidos','Inventario','Proyectos'] %}
+            <option value="{{ t }}" {% if tipo==t %}selected{% endif %}>{{ t }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Material / Nombre</label>
+          <input name="material" value="{{ mat }}" placeholder="Buscar por nombre...">
+        </div>
+        <div class="form-group">
+          <label>Grosor</label>
+          <input name="grosor" value="{{ gro }}" placeholder="Ej: 15mm">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Fecha desde (dd/mm/aaaa)</label>
+          <input name="fecha_ini" value="{{ fi }}" placeholder="dd/mm/aaaa">
+        </div>
+        <div class="form-group">
+          <label>Fecha hasta (dd/mm/aaaa)</label>
+          <input name="fecha_fin" value="{{ ff }}" placeholder="dd/mm/aaaa">
+        </div>
+      </div>
+      <button type="submit" class="btn" style="background:#6a3d9a;color:#fff;padding:10px 28px">🔍 Buscar</button>
+      <a href="/filtros" class="btn btn-gris" style="margin-left:8px">Limpiar</a>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header" style="background:#f9f9f9;justify-content:space-between">
+    <span>Resultados {% if resultados %}({{ resultados|length }}){% endif %}</span>
+  </div>
+  <div class="card-body" style="padding:0">
+    <table>
+      <thead>
+        <tr>
+          <th>Tipo</th>
+          <th>Fecha</th>
+          <th>Material / Nombre</th>
+          <th>Grosor</th>
+          <th>Cantidad / Estado</th>
+          <th style="width:80px">Eliminar</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in resultados %}
+        <tr>
+          <td>
+            {% if r.tipo=='Pedido' %}<span class="badge badge-naranja">📋 Pedido</span>
+            {% elif r.tipo=='Inventario' %}<span class="badge badge-azul">📦 Inventario</span>
+            {% else %}<span class="badge badge-verde">📁 Proyecto</span>{% endif %}
+          </td>
+          <td style="font-size:12px;color:#888">{{ r.fecha }}</td>
+          <td><strong>{{ r.nombre }}</strong></td>
+          <td>{% if r.grosor and r.grosor != '—' %}<span class="badge" style="background:#f3e5f5;color:#6a3d9a">{{ r.grosor }}</span>{% else %}<span style="color:#ccc">—</span>{% endif %}</td>
+          <td>{{ r.cantidad }}</td>
+          <td>
+            <form method="POST" action="/filtros/eliminar"
+                  onsubmit="return confirm('¿Eliminar {{ r.nombre }}?')">
+              <input type="hidden" name="tabla" value="{{ r.tabla }}">
+              <input type="hidden" name="id" value="{{ r.id }}">
+              <input type="hidden" name="tipo" value="{{ tipo }}">
+              <input type="hidden" name="material" value="{{ mat }}">
+              <input type="hidden" name="grosor" value="{{ gro }}">
+              <input type="hidden" name="fecha_ini" value="{{ fi }}">
+              <input type="hidden" name="fecha_fin" value="{{ ff }}">
+              <button class="btn btn-rojo btn-sm">🗑</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" style="text-align:center;color:#aaa;padding:32px">
+          {% if mat or gro or fi or ff %}Sin resultados con esos filtros{% else %}Ingresa parámetros y haz clic en Buscar{% endif %}
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

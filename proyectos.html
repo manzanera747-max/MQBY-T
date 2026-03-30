@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+  <h2 style="font-size:20px;color:#2d6a4f">📁 Proyectos</h2>
+  <a href="/proyectos/nuevo" class="btn btn-verde">➕ Nuevo Proyecto</a>
+</div>
+
+{% if proyectos %}
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px">
+  {% for p in proyectos %}
+  <div class="card" style="margin-bottom:0">
+    <div class="card-header" style="background:#2d6a4f;color:#fff;justify-content:space-between">
+      <span>📁 {{ p.nombre }}</span>
+      <span style="font-size:11px;opacity:.8">{{ p.ndocs }}/3 docs</span>
+    </div>
+    <div class="card-body">
+      <div style="font-size:12px;color:#888;margin-bottom:12px">
+        🗓 {{ p.creado or '—' }}&nbsp;&nbsp;👤 {{ p.usuario or '—' }}
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <a href="/proyectos/{{ p.id }}" class="btn btn-verde btn-sm">Ver ficha</a>
+        <form method="POST" action="/proyectos/{{ p.id }}/eliminar"
+              onsubmit="return confirm('¿Eliminar proyecto {{ p.nombre }}?')" style="display:inline">
+          <button class="btn btn-rojo btn-sm">🗑 Eliminar</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card">
+  <div class="card-body" style="text-align:center;color:#aaa;padding:48px">
+    <div style="font-size:48px;margin-bottom:12px">📁</div>
+    <p>No hay proyectos aún.</p>
+    <a href="/proyectos/nuevo" class="btn btn-verde" style="margin-top:16px;display:inline-flex">➕ Crear primer proyecto</a>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

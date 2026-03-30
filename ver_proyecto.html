@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap">
+  <a href="/proyectos" class="btn btn-gris btn-sm">← Volver</a>
+  <h2 style="font-size:20px;color:#2d6a4f;flex:1">📁 {{ proy.nombre }}</h2>
+  <form method="POST" action="/proyectos/{{ proy.id }}/eliminar"
+        onsubmit="return confirm('¿Eliminar proyecto {{ proy.nombre }}?')">
+    <button class="btn btn-rojo btn-sm">🗑 Eliminar proyecto</button>
+  </form>
+</div>
+
+<div class="card" style="margin-bottom:20px">
+  <div class="card-header" style="background:#f9f9f9">📋 Información general</div>
+  <div class="card-body">
+    <div style="display:grid;grid-template-columns:auto 1fr;gap:8px 24px;font-size:14px">
+      <span style="color:#888;font-weight:600">Creado:</span><span>{{ proy.creado or '—' }}</span>
+      <span style="color:#888;font-weight:600">Por:</span><span>{{ proy.usuario or '—' }}</span>
+    </div>
+  </div>
+</div>
+
+{% for tipo, emoji, label, color in [
+  ('cotizacion','💰','COTIZACIÓN','#d4820a'),
+  ('render','🎨','RENDER','#1a6fa8'),
+  ('plano_corte','📐','PLANO DE CORTE','#2d6a4f')
+] %}
+{% set doc = docs.get(tipo) %}
+<div class="doc-card">
+  <div class="doc-card-header" style="background:{{ color }};color:#fff">
+    {{ emoji }} {{ label }}
+  </div>
+  <div class="doc-card-body">
+    {% if doc and doc.nombre_arch %}
+      <div style="flex:1;min-width:200px">
+        <div style="font-size:13px;color:#888">Archivo:</div>
+        <div style="font-weight:700;font-size:14px">{{ doc.nombre_arch }}</div>
+        <div style="font-size:12px;color:#888;margin-top:2px">📅 {{ doc.fecha or '—' }}</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <a href="/archivos/{{ doc.ruta_local }}" target="_blank"
+           class="btn btn-sm" style="background:{{ color }};color:#fff">
+          📂 Abrir
+        </a>
+        <button onclick="openModal('modal_{{ tipo }}')"
+                class="btn btn-gris btn-sm">🔄 Reemplazar</button>
+      </div>
+    {% else %}
+      <span style="color:#aaa;font-size:13px">Sin archivo adjunto</span>
+      <button onclick="openModal('modal_{{ tipo }}')"
+              class="btn btn-sm" style="background:{{ color }};color:#fff;margin-left:auto">
+        📎 Adjuntar PDF
+      </button>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Modal adjuntar/reemplazar -->
+<div class="modal-overlay" id="modal_{{ tipo }}">
+  <div class="modal">
+    <div class="modal-header" style="color:{{ color }}">
+      {{ emoji }} {{ label }}
+      <button class="close-modal" onclick="closeModal('modal_{{ tipo }}')">✕</button>
+    </div>
+    <form method="POST" action="/proyectos/{{ proy.id }}/adjuntar/{{ tipo }}" enctype="multipart/form-data">
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Fecha del documento</label>
+          <input type="text" name="fecha" placeholder="dd/mm/aaaa" id="f_{{ tipo }}">
+        </div>
+        <div class="form-group">
+          <label>Seleccionar archivo *</label>
+          <input type="file" name="archivo" accept=".pdf,.png,.jpg,.jpeg" required>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-gris btn-sm" onclick="closeModal('modal_{{ tipo }}')">Cancelar</button>
+        <button type="submit" class="btn btn-sm" style="background:{{ color }};color:#fff">Guardar</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endfor %}
+
+<script>
+document.querySelectorAll('input[id^="f_"]').forEach(e=>{
+  const d=new Date();
+  e.value=String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear();
+});
+</script>
+{% endblock %}

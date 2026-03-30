@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MarquiBot — Iniciar sesión</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',sans-serif;background:#111;min-height:100vh;display:flex;align-items:center;justify-content:center}
+.login-box{background:#fff;border-radius:16px;width:420px;max-width:95vw;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.login-top{background:#111;padding:32px 24px 24px;text-align:center}
+.login-top .titulo{color:#2d6a4f;font-size:24px;font-weight:800;letter-spacing:1px}
+.login-top .sub{color:#888;font-size:13px;margin-top:4px}
+.login-body{padding:28px 28px 24px}
+h3{font-size:14px;color:#444;margin-bottom:16px;text-align:center}
+.btn-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.user-btn{display:flex;align-items:center;gap:10px;padding:12px 16px;border:2px solid #e0e0e0;border-radius:10px;background:#fff;cursor:pointer;font-size:14px;font-weight:700;color:#333;transition:all .15s;text-align:left;width:100%}
+.user-btn:hover{border-color:#2d6a4f;background:#eff7f2;color:#2d6a4f}
+.user-btn .em{font-size:22px}
+.divider{border:none;border-top:1px solid #eee;margin:20px 0}
+.login-footer{font-size:12px;color:#aaa;text-align:center;padding:0 28px 24px}
+</style>
+</head>
+<body>
+<div class="login-box">
+  <div class="login-top">
+    <div class="titulo">🪨 MarquiBot</div>
+    <div class="sub">Mármoles Marquitec — Sistema de Gestión</div>
+  </div>
+  <div class="login-body">
+    <h3>¿Quién eres hoy?</h3>
+    <div class="btn-grid">
+      {% for u in usuarios %}
+      <form method="POST" action="/">
+        <input type="hidden" name="usuario" value="{{ u.nombre }}">
+        <button type="submit" class="user-btn">
+          <span class="em">{{ u.emoji }}</span>
+          <span>{{ u.nombre }}</span>
+        </button>
+      </form>
+      {% endfor %}
+    </div>
+    <hr class="divider">
+    <form method="POST" action="/" style="display:flex;gap:8px">
+      <input name="usuario" placeholder="Otro nombre..." style="flex:1;padding:9px 12px;border:1.5px solid #e0e0e0;border-radius:6px;font-size:14px;outline:none">
+      <button type="submit" style="background:#2d6a4f;color:#fff;border:none;padding:9px 16px;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px">Entrar</button>
+    </form>
+  </div>
+  <div class="login-footer">Todo lo que ingreses queda guardado permanentemente 💾</div>
+</div>
+</body>
+</html>

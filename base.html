@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MarquiBot — Marmoles Marquitec</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',sans-serif;background:#f5f5f5;color:#111}
+:root{--verde:#2d6a4f;--verde2:#3a8c65;--rojo:#c0392b;--naranja:#d4820a;--azul:#1a6fa8;--purp:#6a3d9a;--gris:#f5f5f5;--borde:#e0e0e0}
+
+/* NAV */
+.topbar{background:#111;height:70px;display:flex;align-items:center;justify-content:center;position:relative}
+.topbar img{height:52px;object-fit:contain}
+.topbar .logo-text{color:var(--verde);font-size:22px;font-weight:700;letter-spacing:1px}
+
+.navbar{background:#fff;border-bottom:3px solid var(--verde);display:flex;align-items:center;padding:0 16px;gap:4px;flex-wrap:wrap;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.navbar a{display:inline-flex;align-items:center;gap:6px;padding:10px 16px;font-size:13px;font-weight:700;border-radius:6px;text-decoration:none;color:#555;transition:all .15s}
+.navbar a:hover{background:var(--verde);color:#fff}
+.navbar a.active{background:var(--verde);color:#fff}
+.navbar a.pedidos-btn{color:var(--naranja)}
+.navbar a.pedidos-btn:hover,.navbar a.pedidos-btn.active{background:var(--naranja);color:#fff}
+.navbar a.inv-btn{color:var(--azul)}
+.navbar a.inv-btn:hover,.navbar a.inv-btn.active{background:var(--azul);color:#fff}
+.navbar a.filtros-btn{color:var(--purp)}
+.navbar a.filtros-btn:hover,.navbar a.filtros-btn.active{background:var(--purp);color:#fff}
+.navbar .spacer{flex:1}
+.navbar .user-badge{background:var(--gris);border:1px solid var(--borde);border-radius:20px;padding:5px 14px;font-size:13px;font-weight:600;color:#333;margin-left:8px}
+.navbar a.logout{color:var(--rojo);font-size:12px}
+.navbar a.logout:hover{background:var(--rojo);color:#fff}
+
+/* MAIN */
+.main{max-width:1100px;margin:0 auto;padding:24px 16px}
+
+/* CARDS */
+.card{background:#fff;border-radius:10px;box-shadow:0 1px 6px rgba(0,0,0,.08);overflow:hidden;margin-bottom:20px}
+.card-header{padding:16px 20px;font-size:15px;font-weight:700;border-bottom:1px solid var(--borde);display:flex;align-items:center;gap:8px}
+.card-body{padding:20px}
+
+/* STATS */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:24px}
+.stat{background:#fff;border-radius:10px;padding:20px 24px;box-shadow:0 1px 6px rgba(0,0,0,.08);border-left:4px solid var(--verde)}
+.stat.naranja{border-left-color:var(--naranja)}
+.stat.azul{border-left-color:var(--azul)}
+.stat .num{font-size:36px;font-weight:800;color:var(--verde)}
+.stat.naranja .num{color:var(--naranja)}
+.stat.azul .num{color:var(--azul)}
+.stat .lbl{font-size:12px;color:#888;margin-top:2px}
+
+/* TABLA */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:var(--verde);color:#fff;padding:10px 12px;text-align:left;font-weight:600}
+td{padding:9px 12px;border-bottom:1px solid #f0f0f0;vertical-align:middle}
+tr:nth-child(even) td{background:#f9fffe}
+tr:hover td{background:#eff7f2}
+
+/* BOTONES */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 18px;border-radius:6px;border:none;font-size:13px;font-weight:700;cursor:pointer;text-decoration:none;transition:all .15s}
+.btn-verde{background:var(--verde);color:#fff}.btn-verde:hover{background:var(--verde2)}
+.btn-rojo{background:var(--rojo);color:#fff}.btn-rojo:hover{background:#a93226}
+.btn-naranja{background:var(--naranja);color:#fff}.btn-naranja:hover{background:#b8690a}
+.btn-azul{background:var(--azul);color:#fff}.btn-azul:hover{background:#155a8a}
+.btn-gris{background:#888;color:#fff}.btn-gris:hover{background:#666}
+.btn-sm{padding:5px 12px;font-size:12px}
+.btn-outline{background:transparent;border:2px solid var(--verde);color:var(--verde)}.btn-outline:hover{background:var(--verde);color:#fff}
+
+/* FORM */
+.form-group{margin-bottom:16px}
+.form-group label{display:block;font-size:12px;font-weight:700;color:#555;margin-bottom:5px}
+.form-group input,.form-group select,.form-group textarea{width:100%;padding:9px 12px;border:1.5px solid var(--borde);border-radius:6px;font-size:14px;outline:none;font-family:inherit;transition:border .15s}
+.form-group input:focus,.form-group select:focus{border-color:var(--verde)}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.form-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+
+/* BADGE */
+.badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700}
+.badge-verde{background:#e8f5e9;color:var(--verde)}
+.badge-rojo{background:#fdecea;color:var(--rojo)}
+.badge-naranja{background:#fff3e0;color:var(--naranja)}
+.badge-azul{background:#e3f2fd;color:var(--azul)}
+
+/* ALERTA */
+.alert{padding:12px 16px;border-radius:8px;margin-bottom:16px;font-size:13px;font-weight:600}
+.alert-error{background:#fdecea;color:var(--rojo);border:1px solid #f5c6cb}
+.alert-ok{background:#e8f5e9;color:var(--verde);border:1px solid #c3e6cb}
+
+/* MODAL SIMPLE */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;align-items:center;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal{background:#fff;border-radius:12px;width:480px;max-width:95vw;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.2)}
+.modal-header{padding:16px 20px;font-weight:700;font-size:15px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--borde)}
+.modal-body{padding:20px}
+.modal-footer{padding:12px 20px;background:#fafafa;display:flex;gap:8px;justify-content:flex-end;border-top:1px solid var(--borde)}
+.close-modal{background:none;border:none;font-size:20px;cursor:pointer;color:#999;line-height:1}
+
+/* DOC CARD */
+.doc-card{border:1.5px solid var(--borde);border-radius:8px;overflow:hidden;margin-bottom:12px}
+.doc-card-header{padding:10px 16px;font-weight:700;font-size:13px;display:flex;align-items:center;gap:8px}
+.doc-card-body{padding:14px 16px;background:#fafafa;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+
+/* RESPONSIVE */
+@media(max-width:600px){
+  .form-row,.form-row-3{grid-template-columns:1fr}
+  .stats{grid-template-columns:1fr 1fr}
+  .navbar{gap:2px}
+  .navbar a{padding:8px 10px;font-size:12px}
+}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="logo-text">🪨 MarquiBot — Mármoles Marquitec</span>
+</div>
+
+{% if usuario %}
+<nav class="navbar">
+  <a href="/dashboard" class="{{ 'active' if request.path=='/dashboard' }}">🏠 Inicio</a>
+  <a href="/proyectos" class="{{ 'active' if '/proyectos' in request.path }}">📁 Proyectos</a>
+  <a href="/pedidos" class="pedidos-btn {{ 'active' if '/pedidos' in request.path }}">📋 Pedidos</a>
+  <a href="/inventario" class="inv-btn {{ 'active' if '/inventario' in request.path }}">📦 Inventario</a>
+  <a href="/filtros" class="filtros-btn {{ 'active' if '/filtros' in request.path }}">🔍 Filtros</a>
+  <a href="/usuarios" class="{{ 'active' if '/usuarios' in request.path }}">👤 Usuarios</a>
+  <span class="spacer"></span>
+  <span class="user-badge">👤 {{ usuario }}</span>
+  <a href="/logout" class="logout">Cerrar sesión</a>
+</nav>
+{% endif %}
+
+<div class="main">
+  {% block content %}{% endblock %}
+</div>
+
+<script>
+function openModal(id){ document.getElementById(id).classList.add('open') }
+function closeModal(id){ document.getElementById(id).classList.remove('open') }
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') document.querySelectorAll('.modal-overlay.open').forEach(m=>m.classList.remove('open')) })
+</script>
+</body>
+</html>
