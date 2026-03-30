@@ -1,15 +1,13 @@
 """
 MarquiBot Web — Marmoles Marquitec
-Flask + SQLite  |  pip install flask
+Flask + SQLite  |  pip install flask reportlab
 """
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify, send_from_directory
-import sqlite3, os, re
+from flask import Flask, render_template, request, redirect, url_for, session, send_from_directory, make_response
+import sqlite3, os, io
 from datetime import datetime
 from werkzeug.utils import secure_filename
 
 BASE_DIR  = os.path.dirname(os.path.abspath(__file__))
-
-# Busca templates/ si existe, si no usa la raiz
 _tmpl = os.path.join(BASE_DIR, "templates")
 if not os.path.isdir(_tmpl):
     _tmpl = BASE_DIR
@@ -17,11 +15,9 @@ if not os.path.isdir(_tmpl):
 app = Flask(__name__, template_folder=_tmpl)
 app.secret_key = "marquitec_2024_secret"
 
-DB_PATH   = os.path.join(BASE_DIR, "marquibot_data.db")
-DOCS_DIR  = os.path.join(BASE_DIR, "static", "uploads")
+DB_PATH  = os.path.join(BASE_DIR, "marquibot_data.db")
+DOCS_DIR = os.path.join(BASE_DIR, "static", "uploads")
 os.makedirs(DOCS_DIR, exist_ok=True)
-
-ALLOWED = {"pdf","png","jpg","jpeg","xlsx","xls"}
 
 # ══════════════════════════════════════════════════════════════
 #  DB
@@ -45,6 +41,17 @@ def init_db():
                 fecha TEXT, nombre_arch TEXT, ruta_local TEXT,
                 subido TEXT, usuario TEXT);
 
+            CREATE TABLE IF NOT EXISTS proyecto_materiales (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                proyecto_id INTEGER NOT NULL,
+                material TEXT, grosor TEXT, notas TEXT,
+                creado TEXT);
+
+            CREATE TABLE IF NOT EXISTS proyecto_info_adicional (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                proyecto_id INTEGER NOT NULL,
+                descripcion TEXT, creado TEXT, usuario TEXT);
+
             CREATE TABLE IF NOT EXISTS pedidos (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 fecha TEXT, material TEXT, grosor TEXT,
@@ -59,7 +66,7 @@ def init_db():
             CREATE TABLE IF NOT EXISTS usuarios (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 nombre TEXT NOT NULL UNIQUE,
-                emoji TEXT DEFAULT '👤', activo INTEGER DEFAULT 1);
+                emoji TEXT DEFAULT '?', activo INTEGER DEFAULT 1);
 
             CREATE TABLE IF NOT EXISTS historial (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -67,7 +74,6 @@ def init_db():
         """)
         for nom, em in [("Nataly","🌸"),("Emilie","😊"),("Rafael","👋"),("Liliana","💚")]:
             cur.execute("INSERT OR IGNORE INTO usuarios (nombre,emoji,activo) VALUES (?,?,1)",(nom,em))
-        # Migraciones
         for tabla, col, tipo in [
             ("pedidos","grosor","TEXT"), ("inventario","grosor","TEXT"),
             ("inventario","unidad","TEXT"), ("historial","modulo","TEXT"),
@@ -81,21 +87,15 @@ init_db()
 
 def db_q(sql, p=()):
     with get_db() as c: return c.execute(sql,p).fetchall()
-
 def db_one(sql, p=()):
     with get_db() as c: return c.execute(sql,p).fetchone()
-
 def db_exec(sql, p=()):
     with get_db() as c: c.execute(sql,p); c.commit()
-
 def log(usuario, modulo, accion):
     db_exec("INSERT INTO historial (fecha,usuario,modulo,accion) VALUES (?,?,?,?)",
             (datetime.now().strftime("%d/%m/%Y %H:%M"), usuario, modulo, accion))
-
 def ahora(): return datetime.now().strftime("%d/%m/%Y %H:%M")
-
-def usuario_actual():
-    return session.get("usuario", None)
+def usuario_actual(): return session.get("usuario", None)
 
 # ══════════════════════════════════════════════════════════════
 #  AUTH
@@ -165,7 +165,6 @@ def nuevo_proyecto():
                 db_exec("INSERT INTO proyectos (nombre,creado,usuario) VALUES (?,?,?)",
                         (nombre, ahora(), usuario_actual()))
                 pid = db_one("SELECT id FROM proyectos WHERE nombre=?",(nombre,))["id"]
-                # Guardar docs
                 for tipo in ["cotizacion","render","plano_corte"]:
                     fecha = request.form.get("fecha_"+tipo,"").strip()
                     f = request.files.get("archivo_"+tipo)
@@ -174,7 +173,7 @@ def nuevo_proyecto():
                         nom_a = secure_filename(f.filename)
                         dest  = os.path.join(DOCS_DIR, str(pid)+"_"+tipo+"_"+nom_a)
                         f.save(dest)
-                        dest  = str(pid)+"_"+tipo+"_"+nom_a  # ruta relativa
+                        dest  = str(pid)+"_"+tipo+"_"+nom_a
                     db_exec("INSERT INTO proyecto_docs (proyecto_id,tipo,fecha,nombre_arch,ruta_local,subido,usuario) VALUES (?,?,?,?,?,?,?)",
                             (pid,tipo,fecha,nom_a,dest,ahora(),usuario_actual()))
                 log(usuario_actual(),"PROYECTO","Nuevo: "+nombre)
@@ -189,10 +188,19 @@ def ver_proyecto(pid):
     if r: return r
     proy = db_one("SELECT * FROM proyectos WHERE id=?", (pid,))
     if not proy: return redirect(url_for("proyectos"))
-    docs = db_q("SELECT * FROM proyecto_docs WHERE proyecto_id=?", (pid,))
+    docs      = db_q("SELECT * FROM proyecto_docs WHERE proyecto_id=?", (pid,))
     docs_dict = {d["tipo"]: d for d in docs}
+    # Info adicional: todos los docs de tipo 'info_adicional'
+    info_docs = db_q("SELECT * FROM proyecto_docs WHERE proyecto_id=? AND tipo='info_adicional' ORDER BY id", (pid,))
+    # Materiales usados
+    materiales = db_q("SELECT * FROM proyecto_materiales WHERE proyecto_id=? ORDER BY id", (pid,))
+    # Info adicional texto
+    info_texto = db_one("SELECT * FROM proyecto_info_adicional WHERE proyecto_id=? ORDER BY id DESC LIMIT 1", (pid,))
     return render_template("ver_proyecto.html", usuario=usuario_actual(),
-                           proy=proy, docs=docs_dict)
+                           proy=proy, docs=docs_dict,
+                           info_docs=info_docs,
+                           materiales=materiales,
+                           info_texto=info_texto)
 
 @app.route("/proyectos/<int:pid>/adjuntar/<tipo>", methods=["POST"])
 def adjuntar_doc(pid, tipo):
@@ -201,18 +209,60 @@ def adjuntar_doc(pid, tipo):
     f = request.files.get("archivo")
     fecha = request.form.get("fecha", datetime.now().strftime("%d/%m/%Y"))
     if f and f.filename:
-        nom_a = secure_filename(f.filename)
+        nom_a    = secure_filename(f.filename)
         dest_rel = str(pid)+"_"+tipo+"_"+nom_a
-        dest = os.path.join(DOCS_DIR, dest_rel)
+        dest     = os.path.join(DOCS_DIR, dest_rel)
         f.save(dest)
-        existe = db_one("SELECT id FROM proyecto_docs WHERE proyecto_id=? AND tipo=?",(pid,tipo))
-        if existe:
-            db_exec("UPDATE proyecto_docs SET fecha=?,nombre_arch=?,ruta_local=?,subido=?,usuario=? WHERE proyecto_id=? AND tipo=?",
-                    (fecha,nom_a,dest_rel,ahora(),usuario_actual(),pid,tipo))
+        if tipo == "info_adicional":
+            # Siempre insertar (hasta 5)
+            count = db_one("SELECT COUNT(*) as c FROM proyecto_docs WHERE proyecto_id=? AND tipo='info_adicional'",(pid,))["c"]
+            if count < 5:
+                db_exec("INSERT INTO proyecto_docs (proyecto_id,tipo,fecha,nombre_arch,ruta_local,subido,usuario) VALUES (?,?,?,?,?,?,?)",
+                        (pid,tipo,fecha,nom_a,dest_rel,ahora(),usuario_actual()))
         else:
-            db_exec("INSERT INTO proyecto_docs (proyecto_id,tipo,fecha,nombre_arch,ruta_local,subido,usuario) VALUES (?,?,?,?,?,?,?)",
-                    (pid,tipo,fecha,nom_a,dest_rel,ahora(),usuario_actual()))
+            existe = db_one("SELECT id FROM proyecto_docs WHERE proyecto_id=? AND tipo=?",(pid,tipo))
+            if existe:
+                db_exec("UPDATE proyecto_docs SET fecha=?,nombre_arch=?,ruta_local=?,subido=?,usuario=? WHERE proyecto_id=? AND tipo=?",
+                        (fecha,nom_a,dest_rel,ahora(),usuario_actual(),pid,tipo))
+            else:
+                db_exec("INSERT INTO proyecto_docs (proyecto_id,tipo,fecha,nombre_arch,ruta_local,subido,usuario) VALUES (?,?,?,?,?,?,?)",
+                        (pid,tipo,fecha,nom_a,dest_rel,ahora(),usuario_actual()))
         log(usuario_actual(),"PROYECTO","Adjunto "+tipo)
+    return redirect(url_for("ver_proyecto", pid=pid))
+
+@app.route("/proyectos/<int:pid>/info_doc/<int:did>/eliminar", methods=["POST"])
+def eliminar_info_doc(pid, did):
+    r = require_login()
+    if r: return r
+    db_exec("DELETE FROM proyecto_docs WHERE id=? AND proyecto_id=?",(did,pid))
+    return redirect(url_for("ver_proyecto", pid=pid))
+
+@app.route("/proyectos/<int:pid>/materiales/guardar", methods=["POST"])
+def guardar_materiales(pid):
+    r = require_login()
+    if r: return r
+    # Borrar existentes y reinsertar
+    db_exec("DELETE FROM proyecto_materiales WHERE proyecto_id=?",(pid,))
+    materiales = request.form.getlist("material[]")
+    grosores   = request.form.getlist("grosor_mat[]")
+    notas_list = request.form.getlist("notas_mat[]")
+    for i, mat in enumerate(materiales):
+        mat = mat.strip()
+        if mat:
+            gro   = grosores[i].strip()   if i < len(grosores)   else ""
+            notas = notas_list[i].strip() if i < len(notas_list) else ""
+            db_exec("INSERT INTO proyecto_materiales (proyecto_id,material,grosor,notas,creado) VALUES (?,?,?,?,?)",
+                    (pid, mat, gro, notas, ahora()))
+    # Info adicional texto
+    info = request.form.get("info_adicional_texto","").strip()
+    existe_info = db_one("SELECT id FROM proyecto_info_adicional WHERE proyecto_id=?",(pid,))
+    if existe_info:
+        db_exec("UPDATE proyecto_info_adicional SET descripcion=?,usuario=? WHERE proyecto_id=?",
+                (info, usuario_actual(), pid))
+    else:
+        db_exec("INSERT INTO proyecto_info_adicional (proyecto_id,descripcion,creado,usuario) VALUES (?,?,?,?)",
+                (pid, info, ahora(), usuario_actual()))
+    log(usuario_actual(),"PROYECTO","Materiales actualizados pid="+str(pid))
     return redirect(url_for("ver_proyecto", pid=pid))
 
 @app.route("/proyectos/<int:pid>/eliminar", methods=["POST"])
@@ -222,6 +272,8 @@ def eliminar_proyecto(pid):
     proy = db_one("SELECT nombre FROM proyectos WHERE id=?",(pid,))
     if proy:
         db_exec("DELETE FROM proyecto_docs WHERE proyecto_id=?",(pid,))
+        db_exec("DELETE FROM proyecto_materiales WHERE proyecto_id=?",(pid,))
+        db_exec("DELETE FROM proyecto_info_adicional WHERE proyecto_id=?",(pid,))
         db_exec("DELETE FROM proyectos WHERE id=?",(pid,))
         log(usuario_actual(),"PROYECTO","Eliminado: "+proy["nombre"])
     return redirect(url_for("proyectos"))
@@ -229,6 +281,151 @@ def eliminar_proyecto(pid):
 @app.route("/archivos/<filename>")
 def archivo(filename):
     return send_from_directory(DOCS_DIR, filename)
+
+# ══════════════════════════════════════════════════════════════
+#  PDF DEL PROYECTO
+# ══════════════════════════════════════════════════════════════
+@app.route("/proyectos/<int:pid>/pdf")
+def descargar_pdf_proyecto(pid):
+    r = require_login()
+    if r: return r
+
+    proy       = db_one("SELECT * FROM proyectos WHERE id=?", (pid,))
+    if not proy: return "Proyecto no encontrado", 404
+
+    docs       = db_q("SELECT * FROM proyecto_docs WHERE proyecto_id=?", (pid,))
+    docs_dict  = {d["tipo"]: d for d in docs}
+    info_docs  = db_q("SELECT * FROM proyecto_docs WHERE proyecto_id=? AND tipo='info_adicional' ORDER BY id",(pid,))
+    materiales = db_q("SELECT * FROM proyecto_materiales WHERE proyecto_id=? ORDER BY id",(pid,))
+    info_texto = db_one("SELECT descripcion FROM proyecto_info_adicional WHERE proyecto_id=? ORDER BY id DESC LIMIT 1",(pid,))
+
+    try:
+        from reportlab.lib.pagesizes import letter
+        from reportlab.lib import colors
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+        from reportlab.lib.units import cm
+    except ImportError:
+        return "Instala reportlab: pip install reportlab", 500
+
+    buf    = io.BytesIO()
+    doc    = SimpleDocTemplate(buf, pagesize=letter,
+             leftMargin=2*cm, rightMargin=2*cm, topMargin=2*cm, bottomMargin=2*cm)
+    styles = getSampleStyleSheet()
+    VERDE  = colors.HexColor("#2d6a4f")
+    VL     = colors.HexColor("#EFF7F2")
+    GRIS   = colors.HexColor("#f5f5f5")
+
+    s_titulo = ParagraphStyle("t", parent=styles["Title"],   textColor=VERDE, fontSize=20, spaceAfter=4)
+    s_sub    = ParagraphStyle("s", parent=styles["Normal"],  textColor=colors.HexColor("#555"), fontSize=10, spaceAfter=10)
+    s_sec    = ParagraphStyle("h", parent=styles["Heading2"],textColor=VERDE, fontSize=13, spaceBefore=14, spaceAfter=6)
+    s_body   = ParagraphStyle("b", parent=styles["Normal"],  fontSize=10, leading=16)
+    s_pie    = ParagraphStyle("p", parent=styles["Normal"],  fontSize=8,  textColor=colors.HexColor("#999"), alignment=1)
+
+    def hr(): return HRFlowable(width="100%", thickness=1, color=colors.HexColor("#dddddd"), spaceAfter=6)
+    def sp(n=0.3): return Spacer(1, n*cm)
+
+    story = []
+    story.append(Paragraph("Marmoles Marquitec", s_titulo))
+    story.append(Paragraph("Ficha de Proyecto", s_sub))
+    story.append(HRFlowable(width="100%", thickness=2, color=VERDE, spaceAfter=8))
+
+    # Datos generales
+    tbl = Table([
+        ["Proyecto:", proy["nombre"]],
+        ["Creado:",   proy["creado"] or "—"],
+        ["Por:",      proy["usuario"] or "—"],
+        ["Generado:", ahora()],
+    ], colWidths=[4*cm, 12*cm])
+    tbl.setStyle(TableStyle([
+        ("FONTNAME",(0,0),(-1,-1),"Helvetica"),
+        ("FONTSIZE",(0,0),(-1,-1),10),
+        ("FONTNAME",(0,0),(0,-1),"Helvetica-Bold"),
+        ("TEXTCOLOR",(0,0),(0,-1),VERDE),
+        ("ROWBACKGROUNDS",(0,0),(-1,-1),[colors.white,GRIS]),
+        ("GRID",(0,0),(-1,-1),0.3,colors.HexColor("#dddddd")),
+        ("PADDING",(0,0),(-1,-1),6),
+    ]))
+    story += [tbl, sp()]
+
+    # Materiales usados
+    if materiales:
+        story.append(hr())
+        story.append(Paragraph("Materiales Usados", s_sec))
+        mat_data = [["Material","Grosor","Notas"]]
+        for m in materiales:
+            mat_data.append([m["material"] or "—", m["grosor"] or "—", m["notas"] or "—"])
+        mt = Table(mat_data, colWidths=[6*cm, 3.5*cm, 8*cm])
+        mt.setStyle(TableStyle([
+            ("BACKGROUND",(0,0),(-1,0),VERDE),
+            ("TEXTCOLOR",(0,0),(-1,0),colors.white),
+            ("FONTNAME",(0,0),(-1,0),"Helvetica-Bold"),
+            ("FONTSIZE",(0,0),(-1,-1),9),
+            ("ROWBACKGROUNDS",(0,1),(-1,-1),[colors.white,VL]),
+            ("GRID",(0,0),(-1,-1),0.3,colors.HexColor("#cccccc")),
+            ("PADDING",(0,0),(-1,-1),6),
+        ]))
+        story += [mt, sp()]
+
+    # Render
+    story.append(hr())
+    story.append(Paragraph("Render", s_sec))
+    doc_render = docs_dict.get("render")
+    if doc_render and doc_render["nombre_arch"]:
+        story.append(Paragraph("Archivo: " + doc_render["nombre_arch"], s_body))
+        story.append(Paragraph("Fecha: "   + (doc_render["fecha"] or "—"), s_body))
+    else:
+        story.append(Paragraph("Sin render adjunto.", s_body))
+    story.append(sp())
+
+    # Plano de corte
+    story.append(hr())
+    story.append(Paragraph("Plano de Corte", s_sec))
+    doc_plano = docs_dict.get("plano_corte")
+    if doc_plano and doc_plano["nombre_arch"]:
+        story.append(Paragraph("Archivo: " + doc_plano["nombre_arch"], s_body))
+        story.append(Paragraph("Fecha: "   + (doc_plano["fecha"] or "—"), s_body))
+    else:
+        story.append(Paragraph("Sin plano adjunto.", s_body))
+    story.append(sp())
+
+    # Informacion adicional - texto
+    if info_texto and info_texto["descripcion"]:
+        story.append(hr())
+        story.append(Paragraph("Informacion Adicional", s_sec))
+        story.append(Paragraph(info_texto["descripcion"], s_body))
+        story.append(sp())
+
+    # Informacion adicional - archivos
+    if info_docs:
+        story.append(hr())
+        story.append(Paragraph("Archivos de Informacion Adicional", s_sec))
+        ia_data = [["Archivo","Fecha"]]
+        for d in info_docs:
+            ia_data.append([d["nombre_arch"] or "—", d["fecha"] or "—"])
+        iat = Table(ia_data, colWidths=[12*cm, 4.5*cm])
+        iat.setStyle(TableStyle([
+            ("BACKGROUND",(0,0),(-1,0),VERDE),
+            ("TEXTCOLOR",(0,0),(-1,0),colors.white),
+            ("FONTNAME",(0,0),(-1,0),"Helvetica-Bold"),
+            ("FONTSIZE",(0,0),(-1,-1),9),
+            ("ROWBACKGROUNDS",(0,1),(-1,-1),[colors.white,VL]),
+            ("GRID",(0,0),(-1,-1),0.3,colors.HexColor("#cccccc")),
+            ("PADDING",(0,0),(-1,-1),6),
+        ]))
+        story += [iat, sp()]
+
+    # Pie
+    story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor("#dddddd"), spaceBefore=10))
+    story.append(Paragraph("Generado por MarquiBot — Marmoles Marquitec  |  "+ahora(), s_pie))
+
+    doc.build(story)
+    buf.seek(0)
+    nombre_archivo = "Ficha_"+proy["nombre"].replace(" ","_")+".pdf"
+    response = make_response(buf.read())
+    response.headers["Content-Type"] = "application/pdf"
+    response.headers["Content-Disposition"] = f"attachment; filename={nombre_archivo}"
+    return response
 
 # ══════════════════════════════════════════════════════════════
 #  PEDIDOS
@@ -287,11 +484,9 @@ def agregar_inventario():
             cant = int(cantidad)
             existe = db_one("SELECT id,cantidad FROM inventario WHERE LOWER(material)=LOWER(?) AND LOWER(COALESCE(grosor,''))=LOWER(?)",(material,grosor))
             if existe:
-                db_exec("UPDATE inventario SET cantidad=?,unidad=?,actualizado=? WHERE id=?",
-                        (existe["cantidad"]+cant, unidad, ahora(), existe["id"]))
+                db_exec("UPDATE inventario SET cantidad=?,unidad=?,actualizado=? WHERE id=?",(existe["cantidad"]+cant,unidad,ahora(),existe["id"]))
             else:
-                db_exec("INSERT INTO inventario (material,grosor,cantidad,unidad,actualizado) VALUES (?,?,?,?,?)",
-                        (material,grosor,cant,unidad,ahora()))
+                db_exec("INSERT INTO inventario (material,grosor,cantidad,unidad,actualizado) VALUES (?,?,?,?,?)",(material,grosor,cant,unidad,ahora()))
             log(usuario_actual(),"INVENTARIO","+ "+material+" "+grosor+" "+str(cant))
         except: pass
     return redirect(url_for("inventario"))
@@ -305,7 +500,7 @@ def quitar_inventario(iid):
     if item:
         try:
             q = int(cantidad)
-            nueva = max(0, item["cantidad"] - q)
+            nueva = max(0, item["cantidad"]-q)
             db_exec("UPDATE inventario SET cantidad=?,actualizado=? WHERE id=?",(nueva,ahora(),iid))
             log(usuario_actual(),"INVENTARIO","- "+item["material"]+" -"+str(q))
         except: pass
@@ -333,7 +528,6 @@ def filtros():
     gro  = request.args.get("grosor","").strip().lower()
     fi   = request.args.get("fecha_ini","").strip()
     ff   = request.args.get("fecha_fin","").strip()
-
     resultados = []
 
     def fecha_ok(f_str):
@@ -357,7 +551,6 @@ def filtros():
             if fecha_ok(row["fecha"]):
                 resultados.append({"tipo":"Pedido","fecha":row["fecha"],"nombre":row["material"],
                                    "grosor":row["grosor"],"cantidad":row["cantidad"],"id":row["id"],"tabla":"pedidos"})
-
     if tipo in ("Todos","Inventario"):
         sql="SELECT id,material,grosor,cantidad,unidad FROM inventario WHERE 1=1"; vals=[]
         if mat: sql+=" AND LOWER(COALESCE(material,'')) LIKE ?"; vals.append("%"+mat+"%")
@@ -366,7 +559,6 @@ def filtros():
             resultados.append({"tipo":"Inventario","fecha":"—","nombre":row["material"],
                                "grosor":row["grosor"],"cantidad":str(row["cantidad"])+" "+(row["unidad"] or "uds"),
                                "id":row["id"],"tabla":"inventario"})
-
     if tipo in ("Todos","Proyectos"):
         sql="SELECT id,nombre,creado FROM proyectos WHERE 1=1"; vals=[]
         if mat: sql+=" AND LOWER(nombre) LIKE ?"; vals.append("%"+mat+"%")
@@ -374,11 +566,10 @@ def filtros():
             if fecha_ok(row["creado"]):
                 ndocs=db_one("SELECT COUNT(*) as c FROM proyecto_docs WHERE proyecto_id=? AND ruta_local IS NOT NULL",(row["id"],))["c"]
                 resultados.append({"tipo":"Proyecto","fecha":row["creado"],"nombre":row["nombre"],
-                                   "grosor":"—","cantidad":str(ndocs)+"/3 docs","id":row["id"],"tabla":"proyectos"})
+                                   "grosor":"—","cantidad":str(ndocs)+" docs","id":row["id"],"tabla":"proyectos"})
 
     return render_template("filtros.html", usuario=usuario_actual(),
-                           resultados=resultados, tipo=tipo,
-                           mat=mat, gro=gro, fi=fi, ff=ff)
+                           resultados=resultados, tipo=tipo, mat=mat, gro=gro, fi=fi, ff=ff)
 
 @app.route("/filtros/eliminar", methods=["POST"])
 def filtros_eliminar():
@@ -396,12 +587,14 @@ def filtros_eliminar():
         p = db_one("SELECT nombre FROM proyectos WHERE id=?",(rid,))
         if p:
             db_exec("DELETE FROM proyecto_docs WHERE proyecto_id=?",(rid,))
+            db_exec("DELETE FROM proyecto_materiales WHERE proyecto_id=?",(rid,))
+            db_exec("DELETE FROM proyecto_info_adicional WHERE proyecto_id=?",(rid,))
             db_exec("DELETE FROM proyectos WHERE id=?",(rid,))
             log(usuario_actual(),"PROYECTO","Eliminado: "+p["nombre"])
     return redirect(request.referrer or url_for("filtros"))
 
 # ══════════════════════════════════════════════════════════════
-#  USUARIOS (admin)
+#  USUARIOS
 # ══════════════════════════════════════════════════════════════
 @app.route("/usuarios")
 def usuarios():
