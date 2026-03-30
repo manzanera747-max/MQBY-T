@@ -7,10 +7,16 @@ import sqlite3, os, re
 from datetime import datetime
 from werkzeug.utils import secure_filename
 
-app = Flask(__name__)
+BASE_DIR  = os.path.dirname(os.path.abspath(__file__))
+
+# Busca templates/ si existe, si no usa la raiz
+_tmpl = os.path.join(BASE_DIR, "templates")
+if not os.path.isdir(_tmpl):
+    _tmpl = BASE_DIR
+
+app = Flask(__name__, template_folder=_tmpl)
 app.secret_key = "marquitec_2024_secret"
 
-BASE_DIR  = os.path.dirname(os.path.abspath(__file__))
 DB_PATH   = os.path.join(BASE_DIR, "marquibot_data.db")
 DOCS_DIR  = os.path.join(BASE_DIR, "static", "uploads")
 os.makedirs(DOCS_DIR, exist_ok=True)
